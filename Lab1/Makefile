@@ -12,4 +12,6 @@ matrix_multi.o: matrix_multi.c
 
 
 clean:
-	rm -f *.o main
+	del main.exe
+	del lab1_IO.o
+	del matrix_multi.o
