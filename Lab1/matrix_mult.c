@@ -13,7 +13,7 @@ int** matrix_multiplication() {
     int size;
 
 
-    int output = Lab1_loadinput(&matA, &matB, &size);
+    int out = Lab1_loadinput(&matA, &matB, &size);
 
 
 

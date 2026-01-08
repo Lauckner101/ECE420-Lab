@@ -1,15 +1,18 @@
 CC = gcc
 CFLAGS = -Wall -g
+.PHONY: clean
 
-main: lab1_IO.o matrix_multi.o
-	$(CC) $(CFLAGS) -o main lab1_IO.o matrix_multi.o
+main: lab1_IO.o matrix_mult.o
+	$(CC) $(CFLAGS) -o main lab1_IO.o matrix_mult.o
 
 lab1_IO.o: lab1_IO.c
 	$(CC) $(CFLAGS) -c lab1_IO.c
 
-matrix_multi.o: matrix_multi.c
-	$(CC) $(CFLAGS) -c matrix_multi.c
+matrix_mult.o: matrix_mult.c
+	$(CC) $(CFLAGS) -c matrix_mult.c
 
 
 clean:
-	rm -f *.o main
+	del main.exe
+	del matrix_mult.o
+	del lab1_IO.o
