@@ -9,10 +9,11 @@
 int **matA;
 int **matB;
 int **output;
-int num_threads;
+long num_threads;
 int size;
 
-void* matrix_multiplication(void* arg) {
+void* matrix_multiplication(void* rank) {
+    long my_rank = (long) rank;
 
     return NULL;
 
@@ -57,7 +58,7 @@ int main (int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
     
-    num_threads = atoi(argv[1]);
+    num_threads = strtol(argv[1], NULL, 10);
     if (num_threads <= 0) {
         printf(stderr, "Number of threads must be greater than 0\n");
         return EXIT_FAILURE;
@@ -86,11 +87,11 @@ int main (int argc, char* argv[]) {
     GET_TIME(start_time);
     pthread_t* threads = malloc(num_threads * sizeof(pthread_t));
 
-    for (int i = 0; i < num_threads; i++) {
-        pthread_create(&threads[i], NULL, matrix_multiplication, (void*)i);
+    for (long i = 0; i < num_threads; i++) {
+        pthread_create(&threads[i], NULL, matrix_multiplication, (void*) i);
     }
 
-    for (int i = 0; i < num_threads; i++) {
+    for (long i = 0; i < num_threads; i++) {
         pthread_join(threads[i], NULL);
     }
 
@@ -98,5 +99,15 @@ int main (int argc, char* argv[]) {
     printf("Time taken: %f seconds\n", end_time - start_time);
 
     Lab1_saveoutput(output, &size, end_time - start_time);
+
+
+    for (int i = 0; i < size; i++) {
+        free(output[i]);
+    }
+    free(output);
+    free(threads);
+    free(matA);
+    free(matB);
+
     return EXIT_SUCCESS;
 }
