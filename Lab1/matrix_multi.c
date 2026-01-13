@@ -15,40 +15,23 @@ int size;
 void* matrix_multiplication(void* rank) {
     long my_rank = (long) rank;
 
-    return NULL;
+    int jobs = (size * size) / num_threads; // jobs to be completed
 
+    for (int job=0; job < jobs; job++) {
+
+        int sum = 0;
+
+        // add up column/row terms
+        for (int n=0; n < size; n++) {
+            sum += matA[my_rank][n] * matB[n][job];
+        }
+
+        output[my_rank][job] = sum; // update output vector
+    }
+
+    return NULL;
 }
 
-// int** matrix_multiplication(int *size) {
-//     int **matA;
-
-//     int **matB;
-
-//     int **output;
-
-//     int out = Lab1_loadinput(&matA, &matB, size);
-
-//     output = malloc(*size * sizeof(int*));
-//     for (int i = 0; i < *size; i++) {
-//         output[i] = malloc(*size * sizeof(int));
-//     }
-
-//     for (int i=0; i < *size; i++) {
-//         for (int j=0; j < *size; j++) {
-//             int sum = 0;
-
-//             for (int n=0; n < *size; n++) {
-//                 sum += matA[i][n] * matB[n][j];
-//             }
-
-//             output[i][j] = sum;
-//         }
-//     }
-
-
-//     return output;
-
-// }
 
 int main (int argc, char* argv[]) {
     double start_time, end_time;
@@ -87,9 +70,12 @@ int main (int argc, char* argv[]) {
     GET_TIME(start_time);
     pthread_t* threads = malloc(num_threads * sizeof(pthread_t));
 
+    
     for (long i = 0; i < num_threads; i++) {
         pthread_create(&threads[i], NULL, matrix_multiplication, (void*) i);
     }
+
+
 
     for (long i = 0; i < num_threads; i++) {
         pthread_join(threads[i], NULL);
