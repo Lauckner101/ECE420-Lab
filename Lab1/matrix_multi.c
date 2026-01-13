@@ -17,20 +17,50 @@ void* matrix_multiplication(void* rank) {
 
     int jobs = (size * size) / num_threads; // jobs to be completed
 
+    int arrayPosition = 0; // index in a theoretical flatten version of the matrix (4x4 matrix would have length 16, arrayPosition 13 would be the 3rd row second column).
+    int i = 0; // row in mat A to be evaluated
+    int j = 0; // column in mat B to be evaluated
+    int sum = 0;
+
     for (int job=0; job < jobs; job++) {
 
-        int sum = 0;
+        sum = 0;
+
+        arrayPosition = (my_rank * jobs) + job;
+
+        i = (arrayPosition - (arrayPosition % size)) / size;
+        j = arrayPosition % size;
 
         // add up column/row terms
         for (int n=0; n < size; n++) {
-            sum += matA[my_rank][n] * matB[n][job];
+            sum += matA[i][n] * matB[n][j];
         }
 
-        output[my_rank][job] = sum; // update output vector
+        output[i][j] = sum; // update output vector
     }
 
     return NULL;
 }
+
+
+void matrix_multiplication_unthreaded() {
+
+    for (int i=0; i < size; i++) {
+        for (int j=0; j < size; j++) {
+            int sum = 0;
+
+            for (int n=0; n < size; n++) {
+                sum += matA[i][n] * matB[n][j];
+            }
+
+            output[i][j] = sum;
+        }
+    }
+
+}
+
+
+
 
 
 int main (int argc, char* argv[]) {
