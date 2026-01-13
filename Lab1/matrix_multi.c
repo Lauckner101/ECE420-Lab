@@ -1,4 +1,4 @@
-#include <corecrt_search.h>
+//#include <corecrt_search.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "lab1_IO.h"
@@ -73,22 +73,22 @@ int main (int argc, char* argv[]) {
     
     num_threads = strtol(argv[1], NULL, 10);
     if (num_threads <= 0) {
-        printf(stderr, "Number of threads must be greater than 0\n");
+        printf("Number of threads must be greater than 0\n");
         return EXIT_FAILURE;
     } else if (sqrt(num_threads) != (int)sqrt(num_threads)) {
-        printf(stderr,"Number of threads must be a perfect square\n");
+        printf("Number of threads must be a perfect square\n");
         return EXIT_FAILURE;
     }
 
 
     int out = Lab1_loadinput(&matA, &matB, &size);
     if (out != 0) {
-        printf(stderr, "Error loading input\n");
+        printf("Error loading input\n");
         return EXIT_FAILURE;
     }
 
     if ((size * size) % num_threads != 0) {
-        fprintf(stderr, "Matrix size² must be divisble by num of threads\n");
+        printf("Matrix size² must be divisble by num of threads\n");
         return EXIT_FAILURE;
     }
 
