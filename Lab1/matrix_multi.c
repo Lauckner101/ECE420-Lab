@@ -14,31 +14,30 @@ int size;
 
 void* matrix_multiplication(void* rank) {
     long my_rank = (long) rank;
-
-    int jobs = (size * size) / num_threads; // jobs to be completed
-
-    int arrayPosition = 0; // index in a theoretical flatten version of the matrix (4x4 matrix would have length 16, arrayPosition 13 would be the 3rd row second column).
-    int i = 0; // row in mat A to be evaluated
-    int j = 0; // column in mat B to be evaluated
-    int sum = 0;
-
-    for (int job=0; job < jobs; job++) {
-
-        sum = 0;
-
-        arrayPosition = (my_rank * jobs) + job;
-
-        i = (arrayPosition - (arrayPosition % size)) / size;
-        j = arrayPosition % size;
-
-        // add up column/row terms
-        for (int n=0; n < size; n++) {
-            sum += matA[i][n] * matB[n][j];
+    
+    int sqrt_p = (int)sqrt(num_threads);
+    int block_size = size / sqrt_p;
+    
+    int x = my_rank / sqrt_p;
+    int y = my_rank % sqrt_p; 
+    
+    int i_start = block_size * x;
+    int i_end = block_size * (x + 1);
+    int j_start = block_size * y;
+    int j_end = block_size * (y + 1);
+    
+    for (int i = i_start; i < i_end; i++) {
+        for (int j = j_start; j < j_end; j++) {
+            int sum = 0;
+            
+            for (int n = 0; n < size; n++) {
+                sum += matA[i][n] * matB[n][j];
+            }
+            
+            output[i][j] = sum;
         }
-
-        output[i][j] = sum; // update output vector
     }
-
+    
     return NULL;
 }
 

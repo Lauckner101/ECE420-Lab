@@ -11,8 +11,5 @@ lab1_IO.o: lab1_IO.c
 matrix_multi.o: matrix_multi.c
 	$(CC) $(CFLAGS) -c matrix_multi.c
 
-
 clean:
-	del main.exe
-	del lab1_IO.o
-	del matrix_multi.o
+	rm -rf main lab1_IO.o matrix_multi.o
