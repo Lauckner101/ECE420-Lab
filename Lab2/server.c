@@ -106,5 +106,15 @@ int main(int argc, char *argv[]) {
         pthread_detach(tid);
     }
 
+    close(server_fd);
+    
+    for (int i = 0; i < ARRAY_SIZE; i++) {
+        pthread_rwlock_destroy(&array_locks[i]);
+        free(theArray[i]);
+    }
+    
+    free(theArray);
+    free(array_locks);
+
     return 0;
 }
