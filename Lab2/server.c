@@ -34,12 +34,14 @@ void *HandleClient(void *arg) {
 
     if (rq.is_read == 1) {
         // read
+        GET_TIME(start);
         pthread_rwlock_rdlock(&array_locks[rq.pos]);
         getContent(reply, rq.pos, theArray);
         pthread_rwlock_unlock(&array_locks[rq.pos]);
 
     } else {
         // write
+        GET_TIME(start);
         pthread_rwlock_wrlock(&array_locks[rq.pos]);
         setContent(rq.msg, rq.pos, theArray);
         getContent(reply, rq.pos, theArray);
@@ -48,6 +50,7 @@ void *HandleClient(void *arg) {
 
     /* Send response */
     write(client_fd, reply, COM_BUFF_SIZE);
+    GET_TIME(end);
     close(client_fd);
 
     return NULL;
@@ -68,6 +71,7 @@ int main(int argc, char *argv[]) {
 
     theArray = malloc(ARRAY_SIZE * sizeof(char *));
     array_locks = malloc(ARRAY_SIZE * sizeof(pthread_rwlock_t));
+    pthread_t thread_handles[COM_NUM_REQUEST];
 
     for (int i = 0; i < ARRAY_SIZE; i++) {
         theArray[i] = malloc(COM_BUFF_SIZE);
@@ -98,12 +102,20 @@ int main(int argc, char *argv[]) {
 
 
     while (1) {
-        int client_fd = accept(server_fd, NULL, NULL);
-        if (client_fd < 0) continue;
-
-        pthread_t tid;
-        pthread_create(&tid, NULL, HandleClient, (void *)(long)client_fd);
-        pthread_detach(tid);
+        int i = 0;
+        while (i < COM_NUM_REQUEST) {
+            int client_fd = accept(server_fd, NULL, NULL);
+            if (client_fd < 0) {
+                perror("error accepting client");
+                continue;
+            }
+            pthread_create(&thread_handles[i], NULL, HandleClient, (void *)(long)client_fd);
+            i++;
+        }
+        
+        for (int i = 0; i < COM_NUM_REQUEST; i++) {
+            pthread_join(thread_handles[i], NULL);
+        }
     }
 
     close(server_fd);
