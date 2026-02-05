@@ -94,7 +94,7 @@ int main(int argc, char *argv[]) {
 
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(server_port);
+    addr.sin_port = server_port;
     addr.sin_addr.s_addr = INADDR_ANY;
 
     if (bind(server_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {

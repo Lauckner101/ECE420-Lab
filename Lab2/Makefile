@@ -9,4 +9,4 @@ server.o: server.c
 	$(CC) $(CFLAGS) -c server.c
 
 clean:
-	del main server.o
+	rm main server.o
