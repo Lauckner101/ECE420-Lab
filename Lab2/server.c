@@ -9,6 +9,7 @@
 #include <sys/time.h>
 
 #include "common.h"
+#include "timer.h"
 
 char **theArray;                    // array of strings
 pthread_rwlock_t *array_locks;      // one RW lock per array index
