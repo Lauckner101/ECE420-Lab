@@ -1,166 +1,154 @@
 #define LAB4_EXTEND
- 
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <mpi.h>
 #include "Lab4_IO.h"
 #include "timer.h"
- 
-#define EPSILON           0.00001
-#define DAMPING_FACTOR    0.85
-#define CONVERGENCEVAR     10      // check convergence
- 
+
+#define EPSILON        0.00001
+#define DAMPING_FACTOR 0.85
+#define CONVERGENCEVAR 10       // check convergence every N iterations
+
 int main(int argc, char *argv[]) {
-   int rank, size;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-   MPI_Comm_size(MPI_COMM_WORLD, &size);
- 
+    // instantiate variables
+    struct node *nodehead;
+    int nodecount;
+    double *r, *r_pre;
+    int i, j;
+    int iterationcount;
+    double start, end;
+    FILE *ip;
+    /* INSTANTIATE MORE VARIABLES IF NECESSARY */
+    int rank, size;
+    int *recvcounts, *displs;
+    int localN, startNode;
+    double *localContrib, *localPNew;
+    int converged;
 
-   // read nodecount and partition                                      
-   int nodecount;
-   FILE *ip;
-   if ((ip = fopen("data_input_meta", "r")) == NULL) {
-       printf("Process %d: Error opening data_input_meta.\n", rank);
-       MPI_Abort(MPI_COMM_WORLD, 253);
-   }
-   fscanf(ip, "%d\n", &nodecount);
-   fclose(ip);
- 
-   int base  = nodecount / size;
-   int extra = nodecount % size;
- 
-   int *recvcounts = malloc(size * sizeof(int));
-   int *displs     = malloc(size * sizeof(int));
-   for (int p = 0; p < size; ++p) {
-       int ps = p * base + (p < extra ? p : extra);
-       int pe = ps + base + (p < extra ? 1 : 0);
-       recvcounts[p] = pe - ps;
-       displs[p]     = ps;
-   }
- 
-   int start   = displs[rank];
-   int localN = recvcounts[rank];
- 
-   // load data
-   struct node *nodehead;
-   if (node_init(&nodehead, start, start + localN) != 0) {
-       printf("Process %d: node_init failed.\n", rank);
-       MPI_Abort(MPI_COMM_WORLD, 254);
-   }
- 
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-   // Allocate and initialise (p = r * N)
-   
-   double *rContrib     = malloc(nodecount * sizeof(double));
-   double *localContrib = malloc(localN   * sizeof(double));
-   double *localp       = malloc(localN   * sizeof(double));
-   double *localPPrev  = malloc(localN   * sizeof(double)); // for checking convergence
-   double *localPNew   = malloc(localN   * sizeof(double));
- 
-   for (int i = 0; i < localN; ++i) {
-       localp[i]       = 1.0;
-       localContrib[i] = 1.0 / (double)nodehead[i].num_out_links;
-   }
-   MPI_Allgatherv(localContrib, localN, MPI_DOUBLE, rContrib, recvcounts, displs, MPI_DOUBLE, MPI_COMM_WORLD);
- 
-   const double teleport = 1.0 - DAMPING_FACTOR;
- 
+    // load data
+    if ((ip = fopen("data_input_meta", "r")) == NULL) {
+        if (rank == 0) printf("Error opening the data_input_meta file.\n");
+        MPI_Abort(MPI_COMM_WORLD, 253);
+    }
+    fscanf(ip, "%d\n", &nodecount);
+    fclose(ip);
 
-   // computation
+    int base  = nodecount / size;
+    int extra = nodecount % size;
 
-   int iterationcount = 0;
-   double t_start, t_end;
-   double localErr[2], globalErr[2];
-   int converged = 0;
- 
-   MPI_Barrier(MPI_COMM_WORLD);
-   GET_TIME(t_start);
- 
-   while (!converged) {
- 
-       // save p  at the start of each check
-       for (int i = 0; i < localN; ++i) {
-           localPPrev[i] = localp[i];
+    recvcounts = malloc(size * sizeof(int));
+    displs     = malloc(size * sizeof(int));
+    for (int p = 0; p < size; ++p) {
+        int ps = p * base + (p < extra ? p : extra);
+        int pe = ps + base + (p < extra ? 1 : 0);
+        recvcounts[p] = pe - ps;
+        displs[p]     = ps;
+    }
+    startNode = displs[rank];
+    localN    = recvcounts[rank];
+
+    if (node_init(&nodehead, startNode, startNode + localN)) {
+        MPI_Abort(MPI_COMM_WORLD, 254);
+    }
+
+    r     = malloc(nodecount * sizeof(double));
+    r_pre = malloc(localN   * sizeof(double));
+
+    localContrib = malloc(localN * sizeof(double));
+    localPNew    = malloc(localN * sizeof(double));
+
+    double *localp = malloc(localN * sizeof(double));
+    iterationcount = 0;
+    for (i = 0; i < localN; ++i) {
+        localp[i]      = 1.0;
+        localContrib[i] = 1.0 / (double)nodehead[i].num_out_links;
+    }
+
+    MPI_Allgatherv(localContrib, localN, MPI_DOUBLE,
+                   r, recvcounts, displs, MPI_DOUBLE, MPI_COMM_WORLD);
+
+    const double teleport = 1.0 - DAMPING_FACTOR;
+    double localErr[2], globalErr[2];
+    converged = 0;
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    GET_TIME(start);
+    
+    // core calculation
+    do {
+        for (i = 0; i < localN; ++i)
+            r_pre[i] = localp[i];
+
+        for (j = 0; j < CONVERGENCEVAR; ++j) {
+            ++iterationcount;
+
+            for (i = 0; i < localN; ++i) {
+                double sum = 0.0;
+                int  nin = nodehead[i].num_in_links;
+                int *inl = nodehead[i].inlinks;
+                int  k;
+                for (k = 0; k < nin; ++k)
+                    sum += r[inl[k]];
+
+                double p_new    = teleport + DAMPING_FACTOR * sum;
+                localPNew[i]   = p_new;
+                localContrib[i] = p_new / (double)nodehead[i].num_out_links;
+            }
+
+            MPI_Allgatherv(localContrib, localN, MPI_DOUBLE,
+                           r, recvcounts, displs, MPI_DOUBLE, MPI_COMM_WORLD);
+
+            double *tmp = localp;
+            localp      = localPNew;
+            localPNew   = tmp;
         }
 
-       // run convergence interval iterations before checking
-       for (int step = 0; step < CONVERGENCEVAR; ++step) {
-           ++iterationcount;
- 
-           for (int i = 0; i < localN; ++i) {
-               double sum = 0.0;
-               int  nin = nodehead[i].num_in_links;
-               int *inl = nodehead[i].inlinks;
+        localErr[0] = 0.0;
+        localErr[1] = 0.0;
+        for (i = 0; i < localN; ++i) {
+            double diff = localp[i] - r_pre[i];
+            localErr[0] += diff * diff;
+            localErr[1] += r_pre[i] * r_pre[i];
+        }
+        MPI_Allreduce(localErr, globalErr, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-               for (int k = 0; k < nin; ++k) {
-                   sum += rContrib[inl[k]];
-                }
- 
-               double p_new     = teleport + DAMPING_FACTOR * sum;
-               localPNew[i]   = p_new;
-               localContrib[i] = p_new / (double)nodehead[i].num_out_links;
-           }
- 
-           // gather up
-           MPI_Allgatherv(localContrib, localN, MPI_DOUBLE, rContrib, recvcounts, displs, MPI_DOUBLE, MPI_COMM_WORLD);
- 
-           // swap p's
-           double *tmp = localp;
-           localp     = localPNew;
-           localPNew = tmp;
-       }
- 
-       // check convergence once per convergence interval
-       localErr[0] = 0.0;
-       localErr[1] = 0.0;
-       for (int i = 0; i < localN; ++i) {
-           double diff = localp[i] - localPPrev[i];
-           localErr[0] += diff * diff;
-           localErr[1] += localPPrev[i] * localPPrev[i];
-       }
-       MPI_Allreduce(localErr, globalErr, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
- 
-       // scale epsilon by convergence interval
-       if (sqrt(globalErr[0] / globalErr[1]) < EPSILON * CONVERGENCEVAR)
-           converged = 1;
-   }
- 
+        if (sqrt(globalErr[0] / globalErr[1]) < EPSILON * CONVERGENCEVAR)
+            converged = 1;
 
+    } while (!converged);
 
-   MPI_Barrier(MPI_COMM_WORLD);
-   GET_TIME(t_end);
- 
+    MPI_Barrier(MPI_COMM_WORLD);
+    GET_TIME(end);
 
-   // recover final output r = p/N
-   
-   double inv_N = 1.0 / nodecount;
-   for (int i = 0; i < localN; ++i) {
-       localp[i] *= inv_N;
+    double inv_N = 1.0 / nodecount;
+    for (i = 0; i < localN; ++i)
+        localp[i] *= inv_N;
+
+    double *r_full = NULL;
+    if (rank == 0)
+        r_full = malloc(nodecount * sizeof(double));
+
+    MPI_Gatherv(localp, localN, MPI_DOUBLE,
+                r_full, recvcounts, displs, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    if (rank == 0) {
+        Lab4_saveoutput(r_full, nodecount, end - start);
+        printf("Converged in %d iterations. Time: %f s\n", iterationcount, end - start);
     }
 
-   double *r_full = NULL;
-   if (rank == 0) {
-       r_full = malloc(nodecount * sizeof(double));
-    }
- 
-   MPI_Gatherv(localp, localN, MPI_DOUBLE, r_full, recvcounts, displs, MPI_DOUBLE, 0, MPI_COMM_WORLD);
- 
-   if (rank == 0) {
-       Lab4_saveoutput(r_full, nodecount, t_end - t_start);
-       printf("Converged in %d iterations. Time: %f s\n", iterationcount, t_end - t_start);
-       free(r_full);
-   }
- 
+    // post processing
+    node_destroy(nodehead, localN);
+    free(r); free(r_pre);
+    free(localp); free(localContrib); free(localPNew);
+    free(recvcounts); free(displs);
+    if (rank == 0) free(r_full);
 
-   // destroy and free
-   node_destroy(nodehead, localN);
-   free(rContrib); free(localContrib);
-   free(localp); free(localPPrev); free(localPNew);
-   free(recvcounts); free(displs);
- 
-   MPI_Finalize();
-   return 0;
+    MPI_Finalize();
+    return 0;
 }
-
